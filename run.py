@@ -1,11 +1,14 @@
-import os
-from app import create_app, db
+from app import create_app, db  
 
-app = create_app(os.getenv('FLASK_ENV', 'default'))
+# Создаем экземпляр приложения  
+app = create_app()  
 
-@app.before_first_request
-def create_tables():
-    db.create_all()
+# --- Новый способ инициализации базы данных ---  
+# Создаем таблицы в контексте приложения  
+with app.app_context():  
+    db.create_all()  
+# ---------------------------------------------  
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+if __name__ == '__main__':  
+    # Запускаем приложение для разработки  
+    app.run(debug=True)

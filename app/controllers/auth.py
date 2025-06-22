@@ -72,3 +72,26 @@ def profile():
         return jsonify({'msg': 'Пользователь не найден'}), 404
 
     return jsonify({'user': user.to_dict()}), 200
+
+# Добавляем новый маршрут /me для получения информации о текущем пользователе  
+@auth.route('/me', methods=['GET'])  
+@jwt_required()  # Этот декоратор защищает маршрут - только авторизованные пользователи  
+def get_user_info():  
+    # Получаем ID пользователя из JWT токена  
+    current_user_id = get_jwt_identity()  
+    
+    # Ищем пользователя в базе данных  
+    user = User.query.get(current_user_id)  
+    
+    if not user:  
+        return jsonify(message="User not found"), 404  
+    
+    # Возвращаем информацию о пользователе (без пароля!)  
+    return jsonify(  
+        id=user.id,  
+        username=user.username,  
+        email=user.email,  
+        # Дополнительные поля, которые могут быть в модели User  
+        # role=user.role,  
+        # created_at=user.created_at.isoformat() если есть поле с датой  
+    ), 200  
