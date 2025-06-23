@@ -1,97 +1,139 @@
-from flask import Blueprint, request, jsonify
-from flask_jwt_extended import create_access_token, create_refresh_token, jwt_required, get_jwt_identity
-from ..models.user import User
-from .. import db
+import logging  
+from flask import Blueprint, request, jsonify  
+from flask_jwt_extended import (  
+    create_access_token,  
+    create_refresh_token,  
+    jwt_required,  
+    get_jwt_identity  
+)  
+from ..models.user import User  
+from .. import db  
 
-auth = Blueprint('auth', __name__)
+# Настраиваем базовый логгер (можно перенести в точку старта приложения)  
+logging.basicConfig(  
+    level=logging.DEBUG,  
+    format='%(asctime)s %(levelname)s [%(name)s] %(message)s'  
+)  
+logger = logging.getLogger('auth')  
 
-@auth.route('/register', methods=['POST'])
-def register():
-    data = request.get_json()
+auth = Blueprint('auth', __name__)  
 
-    # Проверка наличия необходимых полей
-    if not data or not data.get('email') or not data.get('password'):
-        return jsonify({'msg': 'Отсутствуют необходимые поля: email, password'}), 400
+@auth.route('/register', methods=['POST'])  
+def register():  
+    logger.info("ENTER /register")  
+    data = request.get_json()  
+    logger.debug("Request JSON: %s", data)  
 
-    # Проверка на уникальность email
-    if User.query.filter_by(email=data['email']).first():
-        return jsonify({'msg': 'Пользователь с таким email уже существует'}), 409
+    # Проверка наличия необходимых полей  
+    if not data or not data.get('email') or not data.get('password'):  
+        logger.warning("Missing fields in register: %s", data)  
+        return jsonify({'msg': 'Отсутствуют необходимые поля: email, password'}), 400  
 
-    # Создание нового пользователя
-    new_user = User(
-        email=data['email'],
-        password=data['password'],
-        role=data.get('role', 'buyer')  # По умолчанию - покупатель
-    )
+    # Проверка на уникальность email  
+    exists = User.query.filter_by(email=data['email']).first()  
+    logger.debug("Email exists? %s", bool(exists))  
+    if exists:  
+        logger.warning("Attempt to register existing email: %s", data['email'])  
+        return jsonify({'msg': 'Пользователь с таким email уже существует'}), 409  
 
-    db.session.add(new_user)
-    db.session.commit()
+    # Определяем username  
+    username = data.get('username') or data['email'].split('@')[0]  
+    logger.debug("Resolved username: %s", username)  
 
-    return jsonify({'msg': 'Пользователь успешно зарегистрирован', 'user_id': new_user.id}), 201
+    new_user = User(  
+        username=username,  
+        email=data['email'],  
+        password=data['password'],  
+        role=data.get('role', 'buyer')  
+    )  
 
-@auth.route('/login', methods=['POST'])
-def login():
-    data = request.get_json()
+    try:  
+        db.session.add(new_user)  
+        db.session.commit()  
+        logger.info("User created with id=%s", new_user.id)  
+    except Exception as e:  
+        db.session.rollback()  
+        logger.exception("DB error on user registration")  
+        return jsonify({'msg': 'Ошибка при сохранении пользователя'}), 500  
 
-    # Проверка наличия необходимых полей
-    if not data or not data.get('email') or not data.get('password'):
-        return jsonify({'msg': 'Отсутствуют необходимые поля: email, password'}), 400
+    return jsonify({  
+        'msg': 'Пользователь успешно зарегистрирован',  
+        'user_id': new_user.id,  
+        'username': new_user.username  
+    }), 201  
 
-    # Поиск пользователя
-    user = User.query.filter_by(email=data['email']).first()
+@auth.route('/login', methods=['POST'])  
+def login():  
+    logger.info("ENTER /login")  
+    data = request.get_json()  
+    logger.debug("Request JSON: %s", data)  
 
-    # Проверка существования пользователя и правильности пароля
-    if not user or not user.verify_password(data['password']):
-        return jsonify({'msg': 'Неверный email или пароль'}), 401
+    if not data or not data.get('email') or not data.get('password'):  
+        logger.warning("Missing fields in login: %s", data)  
+        return jsonify({'msg': 'Отсутствуют необходимые поля: email, password'}), 400  
 
-    # Создание токенов
-    access_token = create_access_token(identity=user.id)
-    refresh_token = create_refresh_token(identity=user.id)
+    user = User.query.filter_by(email=data['email']).first()  
+    logger.debug("User fetched: %s", user)  
 
-    return jsonify({
-        'access_token': access_token,
-        'refresh_token': refresh_token,
-        'user': user.to_dict()
-    }), 200
+    if not user or not user.verify_password(data['password']):  
+        logger.warning("Invalid credentials for email: %s", data.get('email'))  
+        return jsonify({'msg': 'Неверный email или пароль'}), 401  
 
-@auth.route('/refresh', methods=['POST'])
-@jwt_required(refresh=True)
-def refresh():
-    current_user_id = get_jwt_identity()
-    access_token = create_access_token(identity=current_user_id)
+    # Логируем тип и значение identity  
+    identity = str(user.id)  
+    logger.debug("Identity for tokens – type: %s, value: %s", type(identity), identity)  
 
-    return jsonify({'access_token': access_token}), 200
+    try:  
+        access_token = create_access_token(identity=identity)  
+        refresh_token = create_refresh_token(identity=identity)  
+        logger.info("Tokens created for user id=%s", identity)  
+    except Exception as e:  
+        logger.exception("Error creating JWT tokens")  
+        return jsonify({'msg': 'Ошибка создания токенов'}), 500  
 
-@auth.route('/profile', methods=['GET'])
-@jwt_required()
-def profile():
-    current_user_id = get_jwt_identity()
-    user = User.query.get(current_user_id)
+    return jsonify({  
+        'access_token': access_token,  
+        'refresh_token': refresh_token,  
+        'user': user.to_dict()  
+    }), 200  
 
-    if not user:
-        return jsonify({'msg': 'Пользователь не найден'}), 404
-
-    return jsonify({'user': user.to_dict()}), 200
-
-# Добавляем новый маршрут /me для получения информации о текущем пользователе  
-@auth.route('/me', methods=['GET'])  
-@jwt_required()  # Этот декоратор защищает маршрут - только авторизованные пользователи  
-def get_user_info():  
-    # Получаем ID пользователя из JWT токена  
+@auth.route('/refresh', methods=['POST'])  
+@jwt_required(refresh=True)  
+def refresh():  
+    logger.info("ENTER /refresh")  
     current_user_id = get_jwt_identity()  
-    
-    # Ищем пользователя в базе данных  
+    logger.debug("Current user identity from refresh token – type: %s, value: %s",  
+                 type(current_user_id), current_user_id)  
+
+    try:  
+        access_token = create_access_token(identity=current_user_id)  
+        logger.info("New access token issued for user id=%s", current_user_id)  
+    except Exception as e:  
+        logger.exception("Error refreshing access token")  
+        return jsonify({'msg': 'Ошибка обновления токена'}), 500  
+
+    return jsonify({'access_token': access_token}), 200  
+
+@auth.route('/me', methods=['GET'])  
+@jwt_required()  
+def get_user_info():  
+    logger.info("ENTER /me")  
+    current_user_id = get_jwt_identity()  
+    logger.debug("Current user identity: %s (type: %s)",  
+                 current_user_id, type(current_user_id))  
+
     user = User.query.get(current_user_id)  
-    
+    logger.debug("User fetched by id: %s", user)  
+
     if not user:  
+        logger.warning("User not found for id: %s", current_user_id)  
         return jsonify(message="User not found"), 404  
-    
-    # Возвращаем информацию о пользователе (без пароля!)  
+
+    logger.info("Returning profile for user id=%s", current_user_id)  
     return jsonify(  
         id=user.id,  
         username=user.username,  
         email=user.email,  
-        # Дополнительные поля, которые могут быть в модели User  
         # role=user.role,  
-        # created_at=user.created_at.isoformat() если есть поле с датой  
-    ), 200  
+        # created_at=user.created_at.isoformat() if present  
+    ), 200
