@@ -91,12 +91,23 @@ def get_products():
             created_to_date = datetime.fromisoformat(created_to)  
             query = query.filter(Product.created_at <= created_to_date)  
         
-        # Применяем дополнительную сортировку, если не было поиска по числовому запросу  
-        if sort_by and (not search_query or not search_query.isdigit()):  
-            sort_attr = getattr(Product, sort_by, None)  
-            if sort_attr:  
-                query = query.order_by(desc(sort_attr) if sort_order == 'desc' else sort_attr)  
-                
+        # # Применяем дополнительную сортировку, если не было поиска по числовому запросу  
+        # if sort_by and (not search_query or not search_query.isdigit()):  
+        #     sort_attr = getattr(Product, sort_by, None)  
+        #     if sort_attr:  
+        #         query = query.order_by(desc(sort_attr) if sort_order == 'desc' else sort_attr)  
+              
+        # Применяем сортировку по категории или другим полям  
+        if sort_by:  
+            if sort_by == 'category.name':  # Сортируем по имени категории  
+                query = query.join(Product.category).order_by(  
+                    Category.name.asc() if sort_order == 'asc' else Category.name.desc()  
+                )  
+            else:  
+                sort_attr = getattr(Product, sort_by, None)  
+                if sort_attr:  
+                    query = query.order_by(desc(sort_attr) if sort_order == 'desc' else sort_attr)  
+                  
         # Предварительно проверяем общее количество записей для корректной пагинации  
         total_count = query.count()  
         max_pages = (total_count + limit - 1) // limit  # Вычисляем максимальное количество страниц  
