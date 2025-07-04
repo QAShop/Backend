@@ -12,17 +12,21 @@ migrate = Migrate()
 def create_app(config_name='default'):
     app = Flask(__name__)
     app.config.from_object(config[config_name])
+    
+    # app.url_map.strict_slashes = False
 
     # Инициализация расширений
     db.init_app(app)
     jwt.init_app(app)
     migrate.init_app(app, db)
-    CORS(app)
+    CORS(app, resources={r"/api/*": {"origins": "http://localhost:5173",   
+                                  "allow_headers": ["Content-Type", "Authorization"],
+                                  "methods": ["GET", "POST", "OPTIONS"]}})
 
     # Регистрация Blueprint'ов
     from .controllers.auth import auth
     from .controllers.products import products
-
+    
     app.register_blueprint(auth, url_prefix='/api/auth')
     app.register_blueprint(products, url_prefix='/api/products')
     

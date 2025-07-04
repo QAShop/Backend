@@ -7,53 +7,7 @@ from .. import db
 
 
 products = Blueprint('products', __name__)  
-
-# @products.route('/', methods=['GET'])  
-# def get_products():  
-#     # Параметры фильтрации  
-#     name = request.args.get('name', '')  
-#     min_price = request.args.get('min_price', type=float)  
-#     max_price = request.args.get('max_price', type=float)  
-#     category_id = request.args.get('category_id', type=int)  # Добавлен параметр фильтрации по категории  
-    
-#     # Параметр limit для ограничения количества товаров на странице  
-#     limit = request.args.get('limit', 10, type=int)  
-#     page = request.args.get('page', 1, type=int)
-       
-#     # Базовый запрос  
-#     query = Product.query  
-
-#     # Применение фильтров  
-#     if name:  
-#         query = query.filter(or_(  
-#             Product.name.ilike(f'%{name}%'),  
-#             Product.description.ilike(f'%{name}%')  
-#         ))  
-
-#     if min_price is not None:  
-#         query = query.filter(Product.price >= min_price)  
-
-#     if max_price is not None:  
-#         query = query.filter(Product.price <= max_price)  
-        
-#     # Фильтр по категории  
-#     if category_id is not None:  
-#         query = query.filter(Product.category_id == category_id)  
-
-#     # # Пагинация  
-#     # page = request.args.get('page', 1, type=int)  
-#     # per_page = request.args.get('per_page', 10, type=int)  
-
-#     # Получение результатов  
-#     pagination = query.paginate(page=page, per_page=limit, error_out=False)  
-#     products = pagination.items  
-
-#     return jsonify({  
-#         'products': [product.to_dict() for product in products],  
-#         'total': pagination.total,  
-#         'pages': pagination.pages,  
-#         'current_page': pagination.page  
-#     }), 200  
+ 
 @products.route('/get-products', methods=['POST'])  
 def get_products():  
     try:  
@@ -142,6 +96,14 @@ def get_products():
             sort_attr = getattr(Product, sort_by, None)  
             if sort_attr:  
                 query = query.order_by(desc(sort_attr) if sort_order == 'desc' else sort_attr)  
+                
+        # Предварительно проверяем общее количество записей для корректной пагинации  
+        total_count = query.count()  
+        max_pages = (total_count + limit - 1) // limit  # Вычисляем максимальное количество страниц  
+        
+        # Проверяем, не превышает ли запрошенная страница максимальное количество страниц  
+        if max_pages > 0 and page > max_pages:  
+            page = max_pages  # Устанавливаем последнюю доступную страницу  
 
         # Получение результатов с пагинацией  
         pagination = query.paginate(page=page, per_page=limit, error_out=False)  
@@ -166,10 +128,18 @@ def get_categories():
     }), 200  
 
     # Создание нового товара 
-@products.route('/', methods=['POST'])  
+@products.route('/create', methods=['OPTIONS'])  
+def create_product_options():  
+    response = jsonify({'msg': 'Preflight response'})  
+    response.headers.add('Access-Control-Allow-Origin', 'http://localhost:5173')  
+    response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')  
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')  
+    return response  
+
+@products.route('/create', methods=['POST'])  
 @admin_required  
 def create_product():  
-    data = request.get_json()  
+    data = request.get_json()   
 
     # Проверка наличия обязательных полей  
     if not data or not data.get('name') or data.get('price') is None:  
@@ -198,7 +168,23 @@ def create_product():
     return jsonify({  
         'msg': 'Товар успешно создан',  
         'product': new_product.to_dict()  
-    }), 201  
+    }), 201 
+
+    # Получение товара по id
+@products.route('/<int:product_id>', methods=['GET'])  
+def get_product(product_id):  
+    try:  
+        product = Product.query.get(product_id)  
+
+        if not product:  
+            return jsonify({'msg': 'Товар не найден'}), 404  
+
+        return jsonify({  
+            'product': product.to_dict()  
+        }), 200  
+    except Exception as e:  
+        # Обработка исключений  
+        return jsonify({'error': str(e)}), 500 
 
     # Обновление данных товара 
 @products.route('/<int:product_id>', methods=['PUT'])  
