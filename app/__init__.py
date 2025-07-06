@@ -21,7 +21,7 @@ def create_app(config_name='default'):
     migrate.init_app(app, db)
     CORS(app, resources={r"/api/*": {"origins": "http://localhost:5173",   
                                   "allow_headers": ["Content-Type", "Authorization"],
-                                  "methods": ["GET", "POST", "OPTIONS"]}})
+                                  "methods": ["GET", "POST", "OPTIONS", "PUT", "DELETE"]}})
 
     # Регистрация Blueprint'ов
     from .controllers.auth import auth
