@@ -2,13 +2,10 @@ from app import create_app, db
 
 # Создаем экземпляр приложения  
 app = create_app()  
+ 
 
-# --- Новый способ инициализации базы данных ---  
-# Создаем таблицы в контексте приложения  
-with app.app_context():  
-    db.create_all()  
-# ---------------------------------------------  
-
-if __name__ == '__main__':  
+if __name__ == '__main__': 
+    with app.app_context():  
+        db.create_all()
     # Запускаем приложение для разработки  
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)
