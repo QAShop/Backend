@@ -25,7 +25,7 @@ def create_app(config_name=None):
     # === CORS: в проде можно разрешить фронт Render ===
     frontend_origin = os.getenv("FRONTEND_URL", "http://localhost:5173")
     CORS(app, resources={r"/api/*": {
-        "origins": frontend_origin,
+        "origins": ["*"],
         "allow_headers": ["Content-Type", "Authorization"],
         "methods": ["GET", "POST", "OPTIONS", "PUT", "DELETE"]
     }})
