@@ -5,6 +5,7 @@ from flask_cors import CORS
 from flask_migrate import Migrate  
 import os
 from .config import config
+from .models import init_categories  # убедись, что импорт есть
 
 db = SQLAlchemy()
 jwt = JWTManager()
@@ -22,13 +23,16 @@ def create_app(config_name=None):
     jwt.init_app(app)
     migrate.init_app(app, db)
 
-    # === CORS: в проде можно разрешить фронт Render ===
+    # === CORS: разрешаем доступ фронтенду ===
     frontend_origin = os.getenv("FRONTEND_URL", "http://localhost:5173")
-    CORS(app, resources={r"/api/*": {
-        "origins": ["*"],
-        "allow_headers": ["Content-Type", "Authorization"],
-        "methods": ["GET", "POST", "OPTIONS", "PUT", "DELETE"]
-    }})
+
+    CORS(
+        app,
+        origins=[frontend_origin, "https://frontend-ocmc.onrender.com"],  # допустимые источники
+        supports_credentials=True,
+        allow_headers=["Content-Type", "Authorization"],  # ✅ равно, не двоеточие
+        methods=["GET", "POST", "OPTIONS", "PUT", "DELETE"]  # ✅ равно, не двоеточие
+    )
 
     # === Регистрация Blueprint'ов ===
     from .controllers.auth import auth
@@ -38,8 +42,6 @@ def create_app(config_name=None):
     app.register_blueprint(products, url_prefix='/api/products')
     
     # === Инициализация базовой структуры ===
-    # ⚠️ На Render не вызываем db.create_all() — сделки делает Alembic
-    # Но можно вызывать init_categories(), если категории нужны всегда.
     with app.app_context():
         try:
             init_categories()
