@@ -27,7 +27,7 @@ def create_app(config_name=None):
 
     CORS(
         app,
-        origins=[frontend_origin, "https://frontend-ocmc.onrender.com"],  # допустимые источники
+        origins=[frontend_origin, "https://frontend-ecmc.onrender.com"],  # допустимые источники
         supports_credentials=True,
         allow_headers=["Content-Type", "Authorization"],  # ✅ равно, не двоеточие
         methods=["GET", "POST", "OPTIONS", "PUT", "DELETE"]  # ✅ равно, не двоеточие
