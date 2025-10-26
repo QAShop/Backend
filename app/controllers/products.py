@@ -142,7 +142,7 @@ def get_categories():
 @products.route('/create', methods=['OPTIONS'])  
 def create_product_options():  
     response = jsonify({'msg': 'Preflight response'})  
-    response.headers.add('Access-Control-Allow-Origin', 'http://localhost:5173')  
+    response.headers.add('Access-Control-Allow-Origin', 'https://frontend-ecmc.onrender.com')  
     response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')  
     response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')  
     return response  
